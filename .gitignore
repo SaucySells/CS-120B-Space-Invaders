@@ -3,3 +3,13 @@ esell002_SpaceInvaders/esell002_SpaceInvaders/esell002_SpaceInvaders.cproj
 esell002_SpaceInvaders/.vs/esell002_SpaceInvaders/v14/.atsuo
 esell002_SpaceInvaders/esell002_SpaceInvaders.atsln
 esell002_SpaceInvaders/esell002_SpaceInvaders/esell002_SpaceInvaders.componentinfo.xml
+esell002_SpaceInvaders/esell002_SpaceInvaders/Debug/Makefile
+*.mk
+*.d
+*.map
+*.hex
+*.elf
+*.eep
+*.lss
+*.srec
+*.o

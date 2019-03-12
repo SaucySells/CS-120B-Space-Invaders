@@ -13,3 +13,4 @@ esell002_SpaceInvaders/esell002_SpaceInvaders/Debug/Makefile
 *.lss
 *.srec
 *.o
+esell002_SpaceInvaders/esell002_SpaceInvaders/temp.c

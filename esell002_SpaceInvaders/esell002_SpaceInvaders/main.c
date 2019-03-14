@@ -8,7 +8,7 @@
 */
 
 #include <avr/io.h>
-#include "bit.h"
+#include <stdbool.h>
 #include <avr/interrupt.h>
 #include "nokia5110.c"
 #include "timer.h"
@@ -33,8 +33,8 @@ unsigned long int findGCD(unsigned long int a, unsigned long int b)
 typedef struct _enemy {
 	unsigned char EnemyXPos; //Enemy X Position
 	unsigned char EnemyYPos; //Enemy Y Position
-	unsigned char isDestroyed; //Whether or not enemy is destroyed
-	unsigned char direction; // 0 for right, 1 for left
+	bool isDestroyed; //Whether or not enemy is destroyed
+	bool direction; // 0 for right, 1 for left
 } EnemyShip;
 
 
@@ -48,37 +48,33 @@ enum GAMESTATE {START_4, WAIT_4, WIN_4, LOSS_4} state_GAMESTATE;
 //Global Variables
 unsigned char XPos;
 unsigned char YPos;
-unsigned char shootLaser;
+bool shootLaser;
 unsigned char LaserXPos;
 unsigned char LaserYPosStart;
 unsigned char LaserYPos;
-unsigned short up;
-unsigned short down;
 unsigned short Joystick_Input;
-unsigned char LaserHit;
+bool LaserHit;
 unsigned char tickMovement;
-unsigned char GameOver;
-unsigned int score;
-unsigned char DisableLCD;
-unsigned short EndTimer;
-unsigned char difficulty;
+bool GameOver;
+unsigned short score;
+bool DisableLCD;
+unsigned char EndTimer;
+bool difficulty;
 unsigned char EnemySprite;
 unsigned short totElapsed;
 unsigned char numDestroyed;
 unsigned char TicksNeeded;
 
-EnemyShip E1 = {18, 5, 0, 0};
-EnemyShip E2 = {28, 5, 0, 0};
-EnemyShip E3 = {38, 5, 0, 0};
-EnemyShip E4 = {48, 5, 0, 0};
-EnemyShip E5 = {18, 5, 0, 1};
-EnemyShip E6 = {28, 5, 0, 1};
-EnemyShip E7 = {38, 5, 0, 1};
-EnemyShip E8 = {48, 5, 0, 1};
-EnemyShip E9 = {58, 5, 0, 0};
-EnemyShip E10 = {58, 12, 0, 1};
+EnemyShip E1 = {23, 5, 0, 0};
+EnemyShip E2 = {33, 5, 0, 0};
+EnemyShip E3 = {43, 5, 0, 0};
+EnemyShip E4 = {53, 5, 0, 0};
+EnemyShip E5 = {23, 5, 0, 1};
+EnemyShip E6 = {33, 5, 0, 1};
+EnemyShip E7 = {43, 5, 0, 1};
+EnemyShip E8 = {53, 5, 0, 1};
 
-EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4, &E5, &E6, &E7, &E8, &E9, &E10};
+EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4, &E5, &E6, &E7, &E8};
 
 //initializes global variables, sets difficulty
 void Game_Init() {
@@ -105,68 +101,55 @@ void Game_Init() {
 		}
 	}
 	XPos = 38;
-	YPos = 41;
+	YPos = 40;
 	shootLaser = 0;
 	LaserXPos = 0;
-	LaserYPosStart = 35;
+	LaserYPosStart = 34;
 	LaserYPos = 0;
-	up = 800;
-	down = 200;
 	Joystick_Input = 0;
 	LaserHit = 0;
 	tickMovement = 0;
 	TicksNeeded = 5;
 	
-	E1.EnemyXPos = 18;
+	E1.EnemyXPos = 23;
 	E1.EnemyYPos = 5;
 	E1.direction = 0;
 	E1.isDestroyed = 0;
 	
-	E2.EnemyXPos = 28;
+	E2.EnemyXPos = 33;
 	E2.EnemyYPos = 5;
 	E2.direction = 0;
 	E2.isDestroyed = 0;
 	
-	E3.EnemyXPos = 38;
+	E3.EnemyXPos = 43;
 	E3.EnemyYPos = 5;
 	E3.direction = 0;
 	E3.isDestroyed = 0;
 
-	E4.EnemyXPos = 48;
+	E4.EnemyXPos = 53;
 	E4.EnemyYPos = 5;
 	E4.direction = 0;
 	E4.isDestroyed = 0;
 	
-	E5.EnemyXPos = 18;
+	E5.EnemyXPos = 23;
 	E5.EnemyYPos = 12;
 	E5.direction = 1;
 	E5.isDestroyed = 0;
 	
-	E6.EnemyXPos = 28;
+	E6.EnemyXPos = 33;
 	E6.EnemyYPos = 12;
 	E6.direction = 1;
 	E6.isDestroyed = 0;
 	
-	E7.EnemyXPos = 38;
+	E7.EnemyXPos = 43;
 	E7.EnemyYPos = 12;
 	E7.direction = 1;
 	E7.isDestroyed = 0;
 
-	E8.EnemyXPos = 48;
+	E8.EnemyXPos = 53;
 	E8.EnemyYPos = 12;
 	E8.direction = 1;
 	E8.isDestroyed = 0;
-	
-	E9.EnemyXPos = 58;
-	E9.EnemyYPos = 5;
-	E9.direction = 0;
-	E9.isDestroyed = 0;
-	
-	E10.EnemyXPos = 58;
-	E10.EnemyYPos = 12;
-	E10.direction = 1;
-	E10.isDestroyed = 0;
-
 
 	GameOver = 0;
 	score = 0;
@@ -229,7 +212,7 @@ void LCD_DISPLAY_Tick () {
 		}
 		
 		//Draw Enemies
-		for (unsigned k = 0; k < 10; ++k) {
+		for (unsigned k = 0; k < 8; ++k) {
 			if (EnemyShips[k]->isDestroyed) {
 				continue;
 			}
@@ -282,10 +265,10 @@ void PLAYER_INPUT_Tick () {
 
 		case READ_INPUTS_2:
 		++totElapsed;
-		if (Joystick_Input >= up && XPos > 8) {
+		if (Joystick_Input >= 800 && XPos > 8) {
 			XPos -= 2;
 		}
-		if (Joystick_Input <= down && XPos < 68) {
+		if (Joystick_Input <= 200 && XPos < 68) {
 			XPos += 2;
 		}
 		if (shootLaser) {
@@ -319,12 +302,12 @@ void ENEMY_UPDATE_Tick() {
 		case UPDATE_3:
 		++tickMovement;
 		if (difficulty == 1) {
-			TicksNeeded = 5 - numDestroyed/3;
+			TicksNeeded = 5 - numDestroyed/2;
 		}
 		else {
 			TicksNeeded = 5;
 		}
-		for (size_t k = 0; k < 10; ++k) {
+		for (size_t k = 0; k < 8; ++k) {
 			if (EnemyShips[k]->isDestroyed) {
 				//do nothing
 				continue;
@@ -393,7 +376,7 @@ void GAMESTATE_Tick() {
 			state_GAMESTATE = LOSS_4;
 		}
 		else {
-			for(size_t k = 0; k < 10; ++k) { //checks if all enemy ships are destroyed
+			for(size_t k = 0; k < 8; ++k) { //checks if all enemy ships are destroyed
 				if (EnemyShips[k]->isDestroyed == 0) {
 					noWin = 1;
 				}

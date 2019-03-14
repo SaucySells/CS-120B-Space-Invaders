@@ -14,3 +14,4 @@ esell002_SpaceInvaders/esell002_SpaceInvaders/Debug/Makefile
 *.srec
 *.o
 esell002_SpaceInvaders/esell002_SpaceInvaders/temp.c
+esell002_SpaceInvaders/esell002_SpaceInvaders/tasksched.c

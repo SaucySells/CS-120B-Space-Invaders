@@ -58,16 +58,18 @@ unsigned short Joystick_Input;
 unsigned char LaserHit;
 unsigned char tickMovement;
 unsigned char GameOver;
-unsigned short score;
+unsigned int score;
 unsigned char DisableLCD;
 unsigned short EndTimer;
 unsigned char difficulty;
 unsigned char EnemySprite;
+unsigned short totElapsed;
+unsigned char TicksMax;
 
-EnemyShip E1; //= {28, 5, 0, 0};
-EnemyShip E2; //= {33, 5, 0, 0};
-EnemyShip E3; //= {38, 5, 0, 0};
-EnemyShip E4; //= {43, 5, 0, 0};
+EnemyShip E1 = {28, 5, 0, 0};
+EnemyShip E2 = {35, 5, 0, 0};
+EnemyShip E3 = {42, 5, 0, 0};
+EnemyShip E4 = {49, 5, 0, 0};
 EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4};
 
 //initializes global variables, sets difficulty
@@ -86,11 +88,13 @@ void Game_Init() {
 		if (~PINB & 0x01 && !(~PINB & 0x02)) {
 			difficulty = 0;
 			EnemySprite = 0x82;
+			TicksMax = 5;
 			break;
 		}
 		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
 			difficulty = 1;
 			EnemySprite = 0x83;
+			TicksMax = 2;
 			break;
 		}
 	}
@@ -111,17 +115,17 @@ void Game_Init() {
 	E1.direction = 0;
 	E1.isDestroyed = 0;
 	
-	E2.EnemyXPos = 35;
+	E2.EnemyXPos = 38;
 	E2.EnemyYPos = 5;
 	E2.direction = 0;
 	E2.isDestroyed = 0;
 	
-	E3.EnemyXPos = 42;
+	E3.EnemyXPos = 48;
 	E3.EnemyYPos = 5;
 	E3.direction = 0;
 	E3.isDestroyed = 0;
 
-	E4.EnemyXPos = 49;
+	E4.EnemyXPos = 58;
 	E4.EnemyYPos = 5;
 	E4.direction = 0;
 	E4.isDestroyed = 0;
@@ -130,6 +134,7 @@ void Game_Init() {
 	score = 0;
 	DisableLCD = 0;
 	EndTimer = 0 ;
+	totElapsed = 0;
 }
 
 
@@ -140,6 +145,12 @@ void Game_Init() {
 unsigned char DetectLaserCollision(unsigned char EnX, unsigned char EnY) {
 	if (((LaserXPos+2 >= (EnX+2) - 4) && (LaserXPos+2 <= (EnX+2) + 4)) && ((LaserYPosStart-LaserYPos-3 >= (EnY-3) - 6) && (LaserYPosStart-LaserYPos-3 <= (EnY-3) + 6)) && shootLaser) {
 		LaserHit = 1;
+		if (difficulty == 0) {
+			score += 100 * (5000 - totElapsed)/250;
+		}
+		else {
+			score += (100 * (5000 - totElapsed)/250) * 2;
+		}
 		return 1;
 	}
 	else {
@@ -234,7 +245,8 @@ void PLAYER_INPUT_Tick () {
 		break;
 
 		case READ_INPUTS_2:
-		if (Joystick_Input >= up && XPos > 30) {
+		++totElapsed;
+		if (Joystick_Input >= up && XPos > 36) {
 			XPos -= 2;
 		}
 		if (Joystick_Input <= down && XPos < 68) {
@@ -280,7 +292,7 @@ void ENEMY_UPDATE_Tick() {
 					GameOver = 1;
 				}
 				EnemyShips[k]->isDestroyed = DetectLaserCollision(EnemyShips[k]->EnemyXPos, EnemyShips[k]->EnemyYPos);
-				if (tickMovement > 10) {
+				if (tickMovement > TicksMax) {
 					tickReset = 1;
 					if (EnemyShips[k]->EnemyXPos >= 68 && EnemyShips[k]->direction == 0) {
 						EnemyShips[k]->direction = 1;
@@ -354,11 +366,13 @@ void GAMESTATE_Tick() {
 		if (~PINB & 0x01 && !(~PINB & 0x02)) {
 			difficulty = 0;
 			EnemySprite = 0x82;
+			TicksMax = 5;
 			break;
 		}
 		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
 			difficulty = 1;
 			EnemySprite = 0x83;
+			TicksMax = 2;
 			break;
 		}
 		break;

@@ -64,13 +64,21 @@ unsigned short EndTimer;
 unsigned char difficulty;
 unsigned char EnemySprite;
 unsigned short totElapsed;
-unsigned char TicksMax;
+unsigned char numDestroyed;
+unsigned char TicksNeeded;
 
-EnemyShip E1 = {28, 5, 0, 0};
-EnemyShip E2 = {35, 5, 0, 0};
-EnemyShip E3 = {42, 5, 0, 0};
-EnemyShip E4 = {49, 5, 0, 0};
-EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4};
+EnemyShip E1 = {18, 5, 0, 0};
+EnemyShip E2 = {28, 5, 0, 0};
+EnemyShip E3 = {38, 5, 0, 0};
+EnemyShip E4 = {48, 5, 0, 0};
+EnemyShip E5 = {18, 5, 0, 1};
+EnemyShip E6 = {28, 5, 0, 1};
+EnemyShip E7 = {38, 5, 0, 1};
+EnemyShip E8 = {48, 5, 0, 1};
+EnemyShip E9 = {58, 5, 0, 0};
+EnemyShip E10 = {58, 12, 0, 1};
+
+EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4, &E5, &E6, &E7, &E8, &E9, &E10};
 
 //initializes global variables, sets difficulty
 void Game_Init() {
@@ -88,63 +96,91 @@ void Game_Init() {
 		if (~PINB & 0x01 && !(~PINB & 0x02)) {
 			difficulty = 0;
 			EnemySprite = 0x82;
-			TicksMax = 5;
 			break;
 		}
 		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
 			difficulty = 1;
 			EnemySprite = 0x83;
-			TicksMax = 2;
 			break;
 		}
 	}
 	XPos = 38;
-	YPos = 42;
+	YPos = 41;
 	shootLaser = 0;
 	LaserXPos = 0;
-	LaserYPosStart = 36;
+	LaserYPosStart = 35;
 	LaserYPos = 0;
 	up = 800;
 	down = 200;
 	Joystick_Input = 0;
 	LaserHit = 0;
 	tickMovement = 0;
+	TicksNeeded = 5;
 	
-	E1.EnemyXPos = 28;
+	E1.EnemyXPos = 18;
 	E1.EnemyYPos = 5;
 	E1.direction = 0;
 	E1.isDestroyed = 0;
 	
-	E2.EnemyXPos = 38;
+	E2.EnemyXPos = 28;
 	E2.EnemyYPos = 5;
 	E2.direction = 0;
 	E2.isDestroyed = 0;
 	
-	E3.EnemyXPos = 48;
+	E3.EnemyXPos = 38;
 	E3.EnemyYPos = 5;
 	E3.direction = 0;
 	E3.isDestroyed = 0;
 
-	E4.EnemyXPos = 58;
+	E4.EnemyXPos = 48;
 	E4.EnemyYPos = 5;
 	E4.direction = 0;
 	E4.isDestroyed = 0;
+	
+	E5.EnemyXPos = 18;
+	E5.EnemyYPos = 12;
+	E5.direction = 1;
+	E5.isDestroyed = 0;
+	
+	E6.EnemyXPos = 28;
+	E6.EnemyYPos = 12;
+	E6.direction = 1;
+	E6.isDestroyed = 0;
+	
+	E7.EnemyXPos = 38;
+	E7.EnemyYPos = 12;
+	E7.direction = 1;
+	E7.isDestroyed = 0;
+
+	E8.EnemyXPos = 48;
+	E8.EnemyYPos = 12;
+	E8.direction = 1;
+	E8.isDestroyed = 0;
+	
+	E9.EnemyXPos = 58;
+	E9.EnemyYPos = 5;
+	E9.direction = 0;
+	E9.isDestroyed = 0;
+	
+	E10.EnemyXPos = 58;
+	E10.EnemyYPos = 12;
+	E10.direction = 1;
+	E10.isDestroyed = 0;
+
 
 	GameOver = 0;
 	score = 0;
 	DisableLCD = 0;
 	EndTimer = 0 ;
 	totElapsed = 0;
+	numDestroyed = 0;
 }
 
 
-
-
-//----------------------------------------------------
-
 unsigned char DetectLaserCollision(unsigned char EnX, unsigned char EnY) {
-	if (((LaserXPos+2 >= (EnX+2) - 4) && (LaserXPos+2 <= (EnX+2) + 4)) && ((LaserYPosStart-LaserYPos-3 >= (EnY-3) - 6) && (LaserYPosStart-LaserYPos-3 <= (EnY-3) + 6)) && shootLaser) {
+	if (((LaserXPos+2 >= (EnX+2) - 3) && (LaserXPos+2 <= (EnX+2) + 3)) && ((LaserYPosStart-LaserYPos-3 >= (EnY-3) - 3) && (LaserYPosStart-LaserYPos-3 <= (EnY-3) + 3)) && shootLaser) {
 		LaserHit = 1;
+		numDestroyed++;
 		if (difficulty == 0) {
 			score += 100 * (5000 - totElapsed)/250;
 		}
@@ -193,7 +229,7 @@ void LCD_DISPLAY_Tick () {
 		}
 		
 		//Draw Enemies
-		for (unsigned k = 0; k < 4; ++k) {
+		for (unsigned k = 0; k < 10; ++k) {
 			if (EnemyShips[k]->isDestroyed) {
 				continue;
 			}
@@ -246,7 +282,7 @@ void PLAYER_INPUT_Tick () {
 
 		case READ_INPUTS_2:
 		++totElapsed;
-		if (Joystick_Input >= up && XPos > 36) {
+		if (Joystick_Input >= up && XPos > 8) {
 			XPos -= 2;
 		}
 		if (Joystick_Input <= down && XPos < 68) {
@@ -282,7 +318,13 @@ void ENEMY_UPDATE_Tick() {
 		
 		case UPDATE_3:
 		++tickMovement;
-		for (size_t k = 0; k < 4; ++k) {
+		if (difficulty == 1) {
+			TicksNeeded = 5 - numDestroyed/3;
+		}
+		else {
+			TicksNeeded = 5;
+		}
+		for (size_t k = 0; k < 10; ++k) {
 			if (EnemyShips[k]->isDestroyed) {
 				//do nothing
 				continue;
@@ -292,13 +334,13 @@ void ENEMY_UPDATE_Tick() {
 					GameOver = 1;
 				}
 				EnemyShips[k]->isDestroyed = DetectLaserCollision(EnemyShips[k]->EnemyXPos, EnemyShips[k]->EnemyYPos);
-				if (tickMovement > TicksMax) {
+				if (tickMovement > TicksNeeded) {
 					tickReset = 1;
 					if (EnemyShips[k]->EnemyXPos >= 68 && EnemyShips[k]->direction == 0) {
 						EnemyShips[k]->direction = 1;
 						EnemyShips[k]->EnemyYPos += 7;
 					}
-					else if (EnemyShips[k]->EnemyXPos <= 28 && EnemyShips[k]->direction == 1) {
+					else if (EnemyShips[k]->EnemyXPos <= 8 && EnemyShips[k]->direction == 1) {
 						EnemyShips[k]->direction = 0;
 						EnemyShips[k]->EnemyYPos += 7;
 					}
@@ -351,7 +393,7 @@ void GAMESTATE_Tick() {
 			state_GAMESTATE = LOSS_4;
 		}
 		else {
-			for(size_t k = 0; k < 4; ++k) { //checks if all enemy ships are destroyed
+			for(size_t k = 0; k < 10; ++k) { //checks if all enemy ships are destroyed
 				if (EnemyShips[k]->isDestroyed == 0) {
 					noWin = 1;
 				}
@@ -363,16 +405,17 @@ void GAMESTATE_Tick() {
 				state_GAMESTATE = WIN_4;
 			}
 		}
+		if (~PINB & 0x08) {
+			Game_Init();
+		}
 		if (~PINB & 0x01 && !(~PINB & 0x02)) {
 			difficulty = 0;
 			EnemySprite = 0x82;
-			TicksMax = 5;
 			break;
 		}
 		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
 			difficulty = 1;
 			EnemySprite = 0x83;
-			TicksMax = 2;
 			break;
 		}
 		break;
@@ -420,7 +463,7 @@ int main()
 	// Set Data Direction Registers
 	DDRA = 0x00; PORTA = 0xFF;
 	DDRB = 0x00; PORTB = 0xFF;
-	DDRC = 0xFF; PORTC = 0x00;
+	DDRC = 0x0F; PORTC = 0xF0;
 	//DDRD = 0xFF; PORTD = 0x00;
 	
 	//Initialize LCD Screen, Joystick, and Game

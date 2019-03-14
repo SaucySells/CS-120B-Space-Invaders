@@ -8,8 +8,11 @@
 */
 
 #include <avr/io.h>
+#include "bit.h"
+#include <avr/interrupt.h>
 #include "nokia5110.c"
 #include "timer.h"
+#include <stdio.h>
 #include "ADC.h"
 
 //--------Find GCD function --------------------------------------------------
@@ -37,30 +40,105 @@ typedef struct _enemy {
 
 //State enums for state machines
 enum LCD_DISPLAY {START_1, WAIT_1} state_LED;
-enum PLAYER_INPUT { START_2, READ_INPUTS_2, JOYSTICK_WAIT_2 } state_PLAYER;
+enum PLAYER_INPUT { START_2, READ_INPUTS_2} state_PLAYER;
 enum ENEMY_UPDATE {START_3, UPDATE_3} state_ENEMY;
+enum GAMESTATE {START_4, WAIT_4, WIN_4, LOSS_4} state_GAMESTATE;
 //----------------------------------------------------
 
 //Global Variables
-unsigned char XPos = 38;
-unsigned char YPos = 42;
-unsigned char shootLaser = 0;
-unsigned char LaserXPos = 0;
-unsigned char LaserYPosStart = 36;
-unsigned char LaserYPos = 0;
-unsigned short up = 800;
-unsigned short down = 200;
-unsigned short Joystick_Input = 0;
-unsigned char LaserHit = 0;
-static EnemyShip E1 = {15, 5, 0, 0};
-EnemyShip *EnemyShips[] = {&E1};
+unsigned char XPos;
+unsigned char YPos;
+unsigned char shootLaser;
+unsigned char LaserXPos;
+unsigned char LaserYPosStart;
+unsigned char LaserYPos;
+unsigned short up;
+unsigned short down;
+unsigned short Joystick_Input;
+unsigned char LaserHit;
+unsigned char tickMovement;
+unsigned char GameOver;
+unsigned short score;
+unsigned char DisableLCD;
+unsigned short EndTimer;
+unsigned char difficulty;
+unsigned char EnemySprite;
+
+EnemyShip E1; //= {28, 5, 0, 0};
+EnemyShip E2; //= {33, 5, 0, 0};
+EnemyShip E3; //= {38, 5, 0, 0};
+EnemyShip E4; //= {43, 5, 0, 0};
+EnemyShip *EnemyShips[] = {&E1, &E2, &E3, &E4};
+
+//initializes global variables, sets difficulty
+void Game_Init() {
+	nokia_lcd_clear();
+	nokia_lcd_set_cursor(0,3);
+	nokia_lcd_write_string("SPACE INVADERS", 1);
+	nokia_lcd_set_cursor(22,23);
+	nokia_lcd_write_string("Select", 1);
+	nokia_lcd_set_cursor(10,32);
+	nokia_lcd_write_string("Difficulty", 1);
+	nokia_lcd_set_cursor(17,41);
+	nokia_lcd_write_string("To Start", 1);
+	nokia_lcd_render();
+	while(1) {
+		if (~PINB & 0x01 && !(~PINB & 0x02)) {
+			difficulty = 0;
+			EnemySprite = 0x82;
+			break;
+		}
+		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
+			difficulty = 1;
+			EnemySprite = 0x83;
+			break;
+		}
+	}
+	XPos = 38;
+	YPos = 42;
+	shootLaser = 0;
+	LaserXPos = 0;
+	LaserYPosStart = 36;
+	LaserYPos = 0;
+	up = 800;
+	down = 200;
+	Joystick_Input = 0;
+	LaserHit = 0;
+	tickMovement = 0;
+	
+	E1.EnemyXPos = 28;
+	E1.EnemyYPos = 5;
+	E1.direction = 0;
+	E1.isDestroyed = 0;
+	
+	E2.EnemyXPos = 35;
+	E2.EnemyYPos = 5;
+	E2.direction = 0;
+	E2.isDestroyed = 0;
+	
+	E3.EnemyXPos = 42;
+	E3.EnemyYPos = 5;
+	E3.direction = 0;
+	E3.isDestroyed = 0;
+
+	E4.EnemyXPos = 49;
+	E4.EnemyYPos = 5;
+	E4.direction = 0;
+	E4.isDestroyed = 0;
+
+	GameOver = 0;
+	score = 0;
+	DisableLCD = 0;
+	EndTimer = 0 ;
+}
+
 
 
 
 //----------------------------------------------------
 
 unsigned char DetectLaserCollision(unsigned char EnX, unsigned char EnY) {
-	if (((LaserXPos >= EnX - 2) && (LaserXPos <= EnX + 2)) && ((LaserYPos >= EnY - 1) && (LaserYPos <= EnY + 7))) {
+	if (((LaserXPos+2 >= (EnX+2) - 4) && (LaserXPos+2 <= (EnX+2) + 4)) && ((LaserYPosStart-LaserYPos-3 >= (EnY-3) - 6) && (LaserYPosStart-LaserYPos-3 <= (EnY-3) + 6)) && shootLaser) {
 		LaserHit = 1;
 		return 1;
 	}
@@ -72,21 +150,24 @@ unsigned char DetectLaserCollision(unsigned char EnX, unsigned char EnY) {
 //SM Task Tick Functions
 
 //Controls what outputs to the Nokia 5110 LCD screen and outputs it.
-void LCD_DISPLAY_Tick () { 
+void LCD_DISPLAY_Tick () {
 	switch (state_LED) {
-	case START_1:
+		case START_1:
 		state_LED = WAIT_1;
 		break;
-	case WAIT_1:
+		case WAIT_1:
 		break;
-	default:
+		default:
 		break;
 	}
 	//State machine actions
 	switch(state_LED) {
-	case START_1:
+		case START_1:
 		break;
-	case WAIT_1:
+		case WAIT_1:
+		if (DisableLCD) {
+			break;
+		}
 		nokia_lcd_clear();
 		//Draw Player
 		nokia_lcd_set_cursor(XPos, YPos);
@@ -96,34 +177,36 @@ void LCD_DISPLAY_Tick () {
 		
 		//Draw Laser
 		if (shootLaser == 1) {
-			nokia_lcd_set_cursor(XPos+2, LaserYPosStart - LaserYPos);
+			nokia_lcd_set_cursor(LaserXPos+2, LaserYPosStart - LaserYPos);
 			nokia_lcd_write_char(0x81, 1);
-			LaserYPos += 3;
 		}
 		
 		//Draw Enemies
-		for (unsigned k = 0; k < sizeof(EnemyShips); ++k) {
+		for (unsigned k = 0; k < 4; ++k) {
 			if (EnemyShips[k]->isDestroyed) {
-				//do nothing
+				continue;
 			}
 			else {
 				nokia_lcd_set_cursor(EnemyShips[k]->EnemyXPos, EnemyShips[k]->EnemyYPos);
-				nokia_lcd_write_char(0x82, 1);
+				nokia_lcd_write_char(EnemySprite, 1);
 			}
 		}
 		
-		//No longer draws laser on next iteration if it's at the top of the screen
+		//No longer draws laser on next iteration if it's at the top of the screen or if it destroys a ship
 		if (LaserYPosStart - LaserYPos < 5 || LaserHit) {
 			shootLaser = 0;
 			LaserYPos = 0;
 			LaserHit = 0;
 		}
 		
+		//nokia_lcd_set_cursor(0,0);
+		//nokia_lcd_write_string(" ", 1);
+		
 		//Renders it all to the screen
 		nokia_lcd_render();
 		break;
-	default:
-		break;	
+		default:
+		break;
 	}
 }
 
@@ -134,46 +217,36 @@ void PLAYER_INPUT_Tick () {
 	
 	//State machine transitions
 	switch (state_PLAYER) {
-	case START_2:	
+		case START_2:
 		state_PLAYER = READ_INPUTS_2;
 		break;
 
-	case READ_INPUTS_2:
-		break;
-
-	case JOYSTICK_WAIT_2:
+		case READ_INPUTS_2:
 		break;
 		
-	default:
+		default:
 		break;
 	}
 
 	//State machine actions
 	switch(state_PLAYER) {
-	case START_2:
+		case START_2:
 		break;
 
-	case READ_INPUTS_2:
-		if (Joystick_Input >= up && XPos > 8) {
+		case READ_INPUTS_2:
+		if (Joystick_Input >= up && XPos > 30) {
 			XPos -= 2;
-			//state_PLAYER = JOYSTICK_WAIT_2;
 		}
 		if (Joystick_Input <= down && XPos < 68) {
 			XPos += 2;
-			//state_PLAYER = JOYSTICK_WAIT_2;
+		}
+		if (shootLaser) {
+			LaserYPos += 3;
 		}
 		if (~PINB & 0x04 && !shootLaser) {
+			LaserXPos = XPos;
 			shootLaser = 1;
 		}
-		break;
-
-	case JOYSTICK_WAIT_2:
-		if (Joystick_Input < up && Joystick_Input > down) {
-			state_PLAYER = READ_INPUTS_2;
-		}
-		break;
-		
-	default:		
 		break;
 	}
 }
@@ -181,61 +254,177 @@ void PLAYER_INPUT_Tick () {
 void ENEMY_UPDATE_Tick() {
 	switch(state_ENEMY) {
 		case START_3:
-			state_ENEMY = UPDATE_3;
-			break;
+		state_ENEMY = UPDATE_3;
+		break;
 		
 		case UPDATE_3:
-			
-			break;
+		break;
 		
 		default:
-			break;
+		break;
 	}
 	switch (state_ENEMY) {
+		unsigned char tickReset = 0;
 		case START_3:
-			break;
+		break;
 		
 		case UPDATE_3:
-			for (unsigned k = 0; k < sizeof(EnemyShips); ++k) {
-				EnemyShips[k]->isDestroyed = DetectLaserCollision(EnemyShips[k]->EnemyXPos, EnemyShips[k]->EnemyYPos);
-				if (EnemyShips[k]->isDestroyed) {
-					//do nothing
+		++tickMovement;
+		for (size_t k = 0; k < 4; ++k) {
+			if (EnemyShips[k]->isDestroyed) {
+				//do nothing
+				continue;
+			}
+			else {
+				if (EnemyShips[k]->EnemyYPos >= 40) {
+					GameOver = 1;
 				}
-				else {
-					EnemyShips[k]->EnemyXPos += 3;
+				EnemyShips[k]->isDestroyed = DetectLaserCollision(EnemyShips[k]->EnemyXPos, EnemyShips[k]->EnemyYPos);
+				if (tickMovement > 10) {
+					tickReset = 1;
+					if (EnemyShips[k]->EnemyXPos >= 68 && EnemyShips[k]->direction == 0) {
+						EnemyShips[k]->direction = 1;
+						EnemyShips[k]->EnemyYPos += 7;
+					}
+					else if (EnemyShips[k]->EnemyXPos <= 28 && EnemyShips[k]->direction == 1) {
+						EnemyShips[k]->direction = 0;
+						EnemyShips[k]->EnemyYPos += 7;
+					}
+					else {
+						if (EnemyShips[k]->direction == 0) {
+							EnemyShips[k]->EnemyXPos += 5;
+						}
+						else {
+							EnemyShips[k]->EnemyXPos -= 5;
+						}
+					}
 				}
 			}
-			break;
+		}
+		if (tickReset) {
+			tickMovement = 0;
+		}
+		break;
 		
 		default:
+		break;
+	}
+}
+
+void GAMESTATE_Tick() {
+	unsigned char noWin = 0;
+	switch(state_GAMESTATE) {
+		case START_4:
+		state_GAMESTATE = WAIT_4;
+		break;
+		
+		case WAIT_4:
+		break;
+		
+		case WIN_4:
+		break;
+		
+		case LOSS_4:
+		break;
+		
+		default:
+		break;
+	}
+	switch(state_GAMESTATE) {
+		case START_4:
+		break;
+		
+		case WAIT_4:
+		if (GameOver) {
+			state_GAMESTATE = LOSS_4;
+		}
+		else {
+			for(size_t k = 0; k < 4; ++k) { //checks if all enemy ships are destroyed
+				if (EnemyShips[k]->isDestroyed == 0) {
+					noWin = 1;
+				}
+				else {
+					continue;
+				}
+			}
+			if (!noWin) {
+				state_GAMESTATE = WIN_4;
+			}
+		}
+		if (~PINB & 0x01 && !(~PINB & 0x02)) {
+			difficulty = 0;
+			EnemySprite = 0x82;
 			break;
+		}
+		else if (~PINB & 0x02 && !(~PINB & 0x01)) {
+			difficulty = 1;
+			EnemySprite = 0x83;
+			break;
+		}
+		break;
+		
+		case WIN_4:
+		++EndTimer;
+		DisableLCD = 1;
+		nokia_lcd_clear();
+		nokia_lcd_set_cursor(15,5);
+		nokia_lcd_write_string("YOU WON!!!", 1);
+		nokia_lcd_set_cursor(15,30);
+		nokia_lcd_write_string("Score: ", 1);
+		nokia_lcd_set_cursor(55, 30);
+		char* score_string;
+		snprintf(score_string, 5, "%d", score);
+		nokia_lcd_write_string(score_string, 1);
+		nokia_lcd_render();
+		if (EndTimer >= 50) {
+			state_GAMESTATE = WAIT_4;
+			Game_Init();
+		}
+		break;
+		
+		case LOSS_4:
+		++EndTimer;
+		DisableLCD = 1;
+		nokia_lcd_clear();
+		nokia_lcd_set_cursor(15,5);
+		nokia_lcd_write_string("You Lost :(", 1);
+		nokia_lcd_render();
+		if (EndTimer >= 50) {
+			state_GAMESTATE = WAIT_4;
+			Game_Init();
+		}
+		break;
+		
+		default:
+		break;
 	}
 }
 
 
-int main(void)
+int main()
 {
 	// Set Data Direction Registers
-	//DDRA = 0xFC; PORTA = 0x03;
+	DDRA = 0x00; PORTA = 0xFF;
 	DDRB = 0x00; PORTB = 0xFF;
-	//DDRC = 0xF0; PORTC = 0x0F;
+	DDRC = 0xFF; PORTC = 0x00;
 	//DDRD = 0xFF; PORTD = 0x00;
 	
-	//Initialize LCD Screen and Joystick
+	//Initialize LCD Screen, Joystick, and Game
 	nokia_lcd_init();
 	adc_init();
+	Game_Init();
 	
 	// Period for the tasks
 	unsigned long int LCD_DISPLAY_calc = 20;
 	unsigned long int PLAYER_INPUT_calc = 40;
 	unsigned long int ENEMY_UPDATE_calc = 40;
-	//unsigned long int SMTick4_calc = 10;
+	unsigned long int GAMESTATE_calc = 10;
 
 	//Calculating GCD
 	unsigned long int tmpGCD = 1;
 	tmpGCD = findGCD(LCD_DISPLAY_calc, PLAYER_INPUT_calc);
 	tmpGCD = findGCD(tmpGCD, ENEMY_UPDATE_calc);
-	//tmpGCD = findGCD(tmpGCD, SMTick4_calc);
+	tmpGCD = findGCD(tmpGCD, GAMESTATE_calc);
 
 	//Greatest common divisor for all tasks or smallest time unit for tasks.
 	unsigned long int GCD = tmpGCD;
@@ -244,11 +433,12 @@ int main(void)
 	unsigned long int LCD_DISPLAY_period = LCD_DISPLAY_calc/GCD;
 	unsigned long int PLAYER_INPUT_period = PLAYER_INPUT_calc/GCD;
 	unsigned long int ENEMY_UPDATE_period = ENEMY_UPDATE_calc/GCD;
-	//unsigned long int SMTick4_period = SMTick4_calc/GCD;
+	unsigned long int GAMESTATE_period = GAMESTATE_calc/GCD;
 	
 	unsigned long int LCD_DISPLAY_elapsed = 0;
 	unsigned long int PLAYER_INPUT_elapsed = 0;
 	unsigned long int ENEMY_UPDATE_elapsed = 0;
+	unsigned long int GAMESTATE_elapsed = 0;
 	
 	//Turn on Timer
 	TimerSet(GCD);
@@ -258,22 +448,26 @@ int main(void)
 	{
 		while(!TimerFlag) {}
 		TimerFlag = 0;
-		
-		if (LCD_DISPLAY_elapsed >= LCD_DISPLAY_period) {
-			LCD_DISPLAY_Tick();
-			LCD_DISPLAY_elapsed = 0;
-		}
-		if (PLAYER_INPUT_elapsed >= PLAYER_INPUT_period) {
-			PLAYER_INPUT_Tick();
-			PLAYER_INPUT_elapsed = 0;
+		if (GAMESTATE_elapsed >= GAMESTATE_period) {
+			GAMESTATE_Tick();
+			GAMESTATE_elapsed = 0;
 		}
 		if (ENEMY_UPDATE_elapsed >= ENEMY_UPDATE_period) {
 			ENEMY_UPDATE_Tick();
 			ENEMY_UPDATE_elapsed = 0;
 		}
+		if (PLAYER_INPUT_elapsed >= PLAYER_INPUT_period) {
+			PLAYER_INPUT_Tick();
+			PLAYER_INPUT_elapsed = 0;
+		}
+		if (LCD_DISPLAY_elapsed >= LCD_DISPLAY_period) {
+			LCD_DISPLAY_Tick();
+			LCD_DISPLAY_elapsed = 0;
+		}
 		++LCD_DISPLAY_elapsed;
 		++PLAYER_INPUT_elapsed;
 		++ENEMY_UPDATE_elapsed;
+		++GAMESTATE_elapsed;
 		
 	}
 	return 0;

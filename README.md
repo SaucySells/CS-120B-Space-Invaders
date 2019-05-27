@@ -1,4 +1,4 @@
-#Space-Invaders
+# Space-Invaders
 
 This is a project I made for my embedded systems class at UCR. It's programmed in C onto an ATMega1284 chip.
 
